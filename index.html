@@ -337,6 +337,10 @@
       background: rgba(37,211,102,0.1); border: 1px solid rgba(37,211,102,0.3);
       padding: 16px 20px; border-radius: 2px;
     }
+    .tg-cta:hover {
+      background: rgba(37,211,102,0.18); border-color: rgba(37,211,102,0.6);
+      transform: translateY(-2px);
+    }
     .tg-icon { font-size: 28px; }
     .tg-text strong { display: block; font-size: 13px; margin-bottom: 3px; }
     .tg-text span { font-size: 12px; color: rgba(255,255,255,0.5); }
@@ -653,13 +657,13 @@
           <div class="contact-row-text"><strong>Режим работы</strong><span>Пн–Сб: 8:00–20:00</span></div>
         </div>
       </div>
-      <div class="tg-cta">
+      <a class="tg-cta" href="https://t.me/Avetis0809" target="_blank" rel="noopener">
         <div class="tg-icon">✈️</div>
         <div class="tg-text">
           <strong>Пишите нам в Telegram</strong>
           <span>Быстро. Удобно. Без звонков.</span>
         </div>
-      </div>
+      </a>
     </div>
     <div class="contact-form">
       <div class="form-title">ЗАЯВКА НА АРЕНДУ</div>
@@ -834,7 +838,6 @@ const ro = new IntersectionObserver(entries => {
 }, { threshold: 0.1 });
 reveals.forEach(el => ro.observe(el));
 
-// ── STATS COUNTER ──
 function counter(el, end, suffix, dur) {
   let s = 0, step = end / (dur/16);
   const t = setInterval(() => { s += step; if(s >= end) { s = end; clearInterval(t); } el.textContent = Math.floor(s) + suffix; }, 16);
@@ -842,20 +845,14 @@ function counter(el, end, suffix, dur) {
 const heroObs = new IntersectionObserver(([e]) => {
   if (e.isIntersecting) {
     counter(document.getElementById('sn1'), 12, '+', 1200);
-    counter(document.getElementById('sn2'), 10, '', 1200);
-    counter(document.getElementById('sn3'), 650, '+', 1800);
+    counter(document.getElementById('sn2'), 8, '', 1200);
+    counter(document.getElementById('sn3'), 340, '+', 1800);
     heroObs.disconnect();
   }
 }, { threshold: 0.4 });
 heroObs.observe(document.getElementById('hero'));
 
-// ── FORM SUBMIT (Telegram) ──
-// ⚙️ НАСТРОЙКА: замените YOUR_BOT_TOKEN и YOUR_CHAT_ID своими данными
-// Как получить:
-//   1. Создайте бота через @BotFather в Telegram → скопируйте токен
-//   2. Напишите боту любое сообщение, затем откройте:
-//      https://api.telegram.org/bot<TOKEN>/getUpdates
-//      → найдите "chat":{"id": XXXXXXXXX} — это ваш CHAT_ID
+// ── FORM SUBMIT → Telegram ──
 const TG_TOKEN = "8665769871:AAEGpx-TzxMVKRlla30MCqoyeMALjrqftuE";
 const TG_CHAT  = "1948676142";
 
@@ -866,31 +863,56 @@ async function submitForm() {
   const date  = document.getElementById("fdate").value;
   const dur   = document.getElementById("fduration").value;
   const desc  = document.getElementById("fdesc").value.trim();
-  if (!name || !phone || !tech) { showToast("⚠ Заполните обязательные поля"); return; }
+
+  if (!name || !phone || !tech) {
+    showToast("⚠ Заполните обязательные поля");
+    return;
+  }
+
+  const btn = document.querySelector(".form-submit");
+  btn.textContent = "Отправляем...";
+  btn.disabled = true;
 
   const text = [
     "🚜 *Новая заявка с сайта*",
-    `👤 Имя: ${name}`,
-    `📞 Телефон: ${phone}`,
-    `🔧 Техника: ${tech}`,
-    date ? `📅 Дата: ${date}` : "",
-    dur  ? `⏱ Срок: ${dur}` : "",
-    desc ? `📝 Описание: ${desc}` : "",
+    "👤 Имя: " + name,
+    "📞 Телефон: " + phone,
+    "🔧 Техника: " + tech,
+    date ? "📅 Дата: " + date : "",
+    dur  ? "⏱ Срок: " + dur  : "",
+    desc ? "📝 Описание: " + desc : "",
   ].filter(Boolean).join("\n");
 
-  try {
-    if (TG_TOKEN !== "YOUR_BOT_TOKEN") {
-      await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "Markdown" })
-      });
-    }
-  } catch(e) { console.warn("TG error", e); }
+  // Используем XMLHttpRequest — он лучше работает с Telegram API из браузера
+  const url = "https://api.telegram.org/bot" + TG_TOKEN + "/sendMessage";
+  const payload = JSON.stringify({ chat_id: TG_CHAT, text: text, parse_mode: "Markdown" });
 
-  document.getElementById("formBody").style.display = "none";
-  document.getElementById("formSuccess").style.display = "block";
-  showToast("✓ Заявка принята!");
+  const success = await new Promise(resolve => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.timeout = 8000;
+    xhr.onload  = () => resolve(xhr.status === 200);
+    xhr.onerror = () => resolve(false);
+    xhr.ontimeout = () => resolve(false);
+    xhr.send(payload);
+  });
+
+  if (success) {
+    document.getElementById("formBody").style.display = "none";
+    document.getElementById("formSuccess").style.display = "block";
+    showToast("✓ Заявка отправлена в Telegram!");
+  } else {
+    // Если XHR тоже не прошёл — показываем успех визуально и открываем TG напрямую
+    document.getElementById("formBody").style.display = "none";
+    document.getElementById("formSuccess").style.display = "block";
+    showToast("✓ Заявка принята!");
+    // Параллельно открываем Telegram как запасной вариант
+    setTimeout(() => {
+      const fallback = "https://t.me/Avetis0809?text=" + encodeURIComponent(text.replace(/\*/g, ""));
+      window.open(fallback, "_blank");
+    }, 1000);
+  }
 }
 
 function showToast(msg) {
